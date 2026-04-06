@@ -85,13 +85,20 @@ Xray-core поддерживает гибридное постквантовое
 
 ## Быстрый старт
 
-```bash
-# Скачать скрипт
-curl -O https://raw.githubusercontent.com/YOUR_USERNAME/xray-setup/main/setup-xray.sh
-chmod +x setup-xray.sh
+Одной командой — скачать и запустить интерактивное меню:
 
-# Запустить
-./setup-xray.sh
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/cmzmozg/xray-setup/main/setup-xray.sh)
+```
+
+Или сразу запустить нужную ноду:
+
+```bash
+# Евро-нода
+bash <(curl -fsSL https://raw.githubusercontent.com/cmzmozg/xray-setup/main/setup-xray.sh) euro
+
+# РФ-нода
+bash <(curl -fsSL https://raw.githubusercontent.com/cmzmozg/xray-setup/main/setup-xray.sh) rf
 ```
 
 ---
