@@ -22,7 +22,13 @@ ALLOWED_IPS=("194.36.178.75" "109.174.35.73" "178.49.143.82")
 XRAY_DIR="/usr/local/etc/xray"
 XRAY_BIN="/usr/local/bin/xray"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-STATE_FILE="$SCRIPT_DIR/euro-node.conf"   # рядом со скриптом
+
+# Ищем euro-node.conf: сначала текущая папка, затем папка скрипта, затем /root
+if   [[ -f "$PWD/euro-node.conf" ]];        then STATE_FILE="$PWD/euro-node.conf"
+elif [[ -f "$SCRIPT_DIR/euro-node.conf" ]]; then STATE_FILE="$SCRIPT_DIR/euro-node.conf"
+elif [[ -f "/root/euro-node.conf" ]];       then STATE_FILE="/root/euro-node.conf"
+else STATE_FILE="$PWD/euro-node.conf"  # путь для сохранения (Евро-нода)
+fi
 
 # ============================================================
 # ОБЩИЕ ФУНКЦИИ
