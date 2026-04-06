@@ -127,9 +127,13 @@ bash <(curl -fsSL https://raw.githubusercontent.com/cmzmozg/xray-setup/main/setu
 
 ### Шаг 2 — Перенос данных на РФ-сервер
 
+Скопируйте скрипт и `euro-node.conf` в `/root/` на РФ-сервер:
+
 ```bash
 scp setup-xray.sh euro-node.conf root@RF_SERVER_IP:/root/
 ```
+
+> `euro-node.conf` должен находиться в `/root/` (или в той же папке откуда запускается скрипт). При запуске через `bash <(curl ...)` файл ищется автоматически в текущей директории.
 
 ### Шаг 3 — РФ-нода (российский VPS)
 
@@ -139,7 +143,7 @@ chmod +x setup-xray.sh
 ./setup-xray.sh rf
 ```
 
-Скрипт обнаружит `euro-node.conf` и предложит загрузить параметры автоматически. Если файл не найден — запросит данные вручную.
+Скрипт автоматически найдёт `euro-node.conf` если он лежит в `/root/` (или в текущей папке) и загрузит параметры без лишних вопросов. Если файл не найден — запросит данные вручную.
 
 По завершении будет выведен **VLESS URI для клиента** — добавьте его в v2rayTUN или Hiddify.
 
@@ -195,7 +199,7 @@ chmod +x setup-xray.sh
 | Путь | Назначение |
 |---|---|
 | `setup-xray.sh` | Основной скрипт |
-| `euro-node.conf` | Параметры Евро-ноды (рядом со скриптом) |
+| `euro-node.conf` | Параметры Евро-ноды — создаётся в `/root/` (или папке скрипта) |
 | `/usr/local/bin/xray` | Бинарник Xray-core |
 | `/usr/local/etc/xray/config.json` | Конфигурация Xray |
 | `/usr/local/share/xray/geoip.dat` | GeoIP база (Loyalsoldier) |
