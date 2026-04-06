@@ -212,7 +212,7 @@ setup_euro() {
       "decryption": "none"
     },
     "streamSettings": {
-      "network": "xhttp",
+      "network": "tcp",
       "security": "reality",
       "realitySettings": {
         "show": false,
@@ -221,11 +221,6 @@ setup_euro() {
         "serverNames": ["$SNI_DONOR"],
         "privateKey": "$PRIVATE_KEY",
         "shortIds": ["$SHORT_ID"]
-      },
-      "xhttpSettings": {
-        "path": "$XHTTP_PATH",
-        "mode": "auto",
-        "extra": { "xPaddingBytes": "100-1000" }
       }
     },
     "sniffing": {
@@ -470,17 +465,13 @@ config = {
                 }]
             },
             "streamSettings": {
-                "network": "xhttp",
+                "network": "tcp",
                 "security": "reality",
                 "realitySettings": {
                     "fingerprint": "randomized",
                     "serverName": os.environ["EURO_SNI"],
                     "publicKey": os.environ["EURO_PUBLIC_KEY"],
                     "shortId": os.environ["EURO_SHORT_ID"]
-                },
-                "xhttpSettings": {
-                    "path": "/",
-                    "mode": "auto"
                 }
             }
         },
