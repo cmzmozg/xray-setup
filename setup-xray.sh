@@ -527,6 +527,28 @@ with open("/tmp/pq_encrypt_rf.txt", "w") as f:
 print("  Config OK | PQ decryption: " + pq_decryption[:40] + "...")
 PYEOF
 
+  # ---------- SOCKS5 inbound для локальных нужд ----------
+  echo -e "${YELLOW}  Добавление SOCKS5 inbound (127.0.0.1:1080)...${NC}"
+  python3 << 'SOCKSEOF'
+import json
+with open("/usr/local/etc/xray/config.json") as f:
+    cfg = json.load(f)
+for ib in cfg.get("inbounds", []):
+    if ib.get("protocol") == "socks" and ib.get("port") == 1080:
+        print("  SOCKS5 уже есть — пропускаем")
+        exit(0)
+cfg["inbounds"].append({
+    "tag": "socks-local",
+    "listen": "127.0.0.1",
+    "port": 1080,
+    "protocol": "socks",
+    "settings": {"auth": "noauth", "udp": False}
+})
+with open("/usr/local/etc/xray/config.json", "w") as f:
+    json.dump(cfg, f, indent=2, ensure_ascii=False)
+print("  SOCKS5 добавлен на 127.0.0.1:1080")
+SOCKSEOF
+
   apply_sysctl
   setup_ufw_base "$CLIENT_PORT"
   start_xray
@@ -542,10 +564,22 @@ PYEOF
   echo "╚══════════════════════════════════════════════════════╝"
   echo -e "${NC}"
 
+  echo -e "${BOLD}━━━ Рекомендованные VPS для РФ-ноды ━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "  VK Cloud      https://cloud.vk.com"
+  echo -e "  EdgeCenter    https://accounts.edgecenter.ru/dashboard"
+  echo -e "  Яндекс Облако https://yandex.cloud"
+  echo ""
+
   echo -e "${BOLD}━━━ Схема трафика ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
   echo -e "  Клиент → РФ-нода:$CLIENT_PORT → Евро-нода ($EURO_IP):$EURO_PORT → Интернет"
   echo ""
 
+  echo -e "${BOLD}━━━ Клиентские приложения ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "  Android : v2rayTUN       https://github.com/2dust/v2rayNG"
+  echo -e "  Windows : v2rayN         https://github.com/2dust/v2rayN"
+  echo -e "  macOS   : v2rayN-macOS   https://github.com/2dust/v2rayN"
+  echo -e "  iOS     : Streisand      https://apps.apple.com/app/id6450534064"
+  echo ""
   echo -e "${BOLD}━━━ VLESS URI для клиента (v2rayTUN / Hiddify) ━━━━━━━━━━━━━${NC}"
   echo -e "${GREEN}vless://${UUID}@${SERVER_IP}:${CLIENT_PORT}?encryption=${PQ_ENC_RF}&security=reality&sni=${RF_SNI}&fp=chrome&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&type=xhttp&path=%2F&mode=packet-up#RF-Bridge-PQ${NC}"
   echo ""
