@@ -133,30 +133,31 @@ print_mgmt() {
 
 # ============================================================
 # БАЗОВЫЙ UFW (вызывается автоматически при установке ноды)
-# Только минимум: deny all incoming, SSH с ALLOWED_IPS,
-# порт Xray открыт. Закрытие опасных портов — только в меню.
+# Политика: разрешить только SSH/22 и порт Xray — всё остальное
+# заблокировано по умолчанию (deny incoming).
+# Пункт меню «4)» позволяет дополнительно открыть нужные порты.
 # ============================================================
 
 setup_ufw_base() {
   local XRAY_PORT="$1"
-  echo -e "${YELLOW}[5/6] Базовая настройка UFW...${NC}"
+  echo -e "${YELLOW}[5/6] Настройка UFW...${NC}"
   ufw --force reset > /dev/null 2>&1
   ufw default deny incoming  > /dev/null 2>&1
   ufw default allow outgoing > /dev/null 2>&1
   ufw default deny forward   > /dev/null 2>&1
 
-  for IP in "${ALLOWED_IPS[@]}"; do
-    ufw allow from "$IP" to any port 22 proto tcp > /dev/null 2>&1
-  done
-  echo -e "${GREEN}  SSH разрешён с: ${ALLOWED_IPS[*]}${NC}"
+  # SSH открыт для всех
+  ufw allow 22/tcp > /dev/null 2>&1
+  echo -e "${GREEN}  SSH (22/tcp) открыт для всех${NC}"
 
+  # Порт Xray открыт для всех
   ufw allow "$XRAY_PORT"/tcp > /dev/null 2>&1
-  echo -e "${GREEN}  Порт $XRAY_PORT открыт${NC}"
+  echo -e "${GREEN}  Xray ($XRAY_PORT/tcp) открыт для всех${NC}"
 
   ufw --force enable > /dev/null 2>&1
   conntrack -F 2>/dev/null || true
-  echo -e "${GREEN}  UFW активирован${NC}"
-  echo -e "${YELLOW}  ℹ️  Закрытие опасных портов — пункт меню «4) Настройка портов»${NC}"
+  echo -e "${GREEN}  UFW активирован — все остальные входящие порты закрыты${NC}"
+  echo -e "${YELLOW}  ℹ️  Открыть дополнительные порты — пункт меню «4) Настройка портов»${NC}"
 }
 
 # ============================================================
@@ -469,13 +470,17 @@ config = {
                 }]
             },
             "streamSettings": {
-                "network": "tcp",
+                "network": "xhttp",
                 "security": "reality",
                 "realitySettings": {
                     "fingerprint": "randomized",
                     "serverName": os.environ["EURO_SNI"],
                     "publicKey": os.environ["EURO_PUBLIC_KEY"],
                     "shortId": os.environ["EURO_SHORT_ID"]
+                },
+                "xhttpSettings": {
+                    "path": "/",
+                    "mode": "auto"
                 }
             }
         },
@@ -567,20 +572,6 @@ PYEOF
 # УПРАВЛЕНИЕ ПОРТАМИ
 # ============================================================
 
-# Опасные порты по умолчанию: описание для отображения
-declare -A PORT_DESC=(
-  [80]="HTTP"
-  [8080]="HTTP-alt"
-  [8443]="HTTPS-alt"
-  [3389]="RDP (Windows Remote Desktop)"
-  [23]="Telnet"
-  [21]="FTP"
-  [25]="SMTP"
-  [110]="POP3"
-  [143]="IMAP"
-)
-DANGEROUS_PORTS=(80 8080 8443 3389 23 21 25 110 143)
-
 manage_ports() {
   echo -e "${CYAN}${BOLD}"
   echo "╔══════════════════════════════════════════════════════╗"
@@ -602,7 +593,7 @@ except:
 " 2>/dev/null)
   fi
 
-  echo -e "${BOLD}━━━ Текущий статус UFW ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "${BOLD}━━━ Текущие разрешённые входящие порты (UFW) ━━━━━━━━━━━━━━━${NC}"
   if ufw status | grep -q "Status: active"; then
     echo -e "  ${GREEN}● UFW активен${NC}"
   else
@@ -616,63 +607,60 @@ except:
   fi
   echo ""
 
-  # Строим список портов для закрытия (исключая порт Xray)
-  TO_CLOSE=()
-  SKIPPED=()
-  for PORT in "${DANGEROUS_PORTS[@]}"; do
-    if [[ "$PORT" == "$XRAY_LISTEN_PORT" ]]; then
-      SKIPPED+=("$PORT")
-    else
-      TO_CLOSE+=("$PORT")
-    fi
-  done
-
-  echo -e "${BOLD}━━━ Порты для закрытия ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-  for PORT in "${TO_CLOSE[@]}"; do
-    # Проверяем текущее состояние в UFW
-    if ufw status | grep -qE "^${PORT}/tcp.*DENY"; then
-      STATUS="${RED}уже закрыт${NC}"
-    elif ufw status | grep -qE "^${PORT}/tcp.*ALLOW"; then
-      STATUS="${YELLOW}открыт (будет закрыт)${NC}"
-    else
-      STATUS="${YELLOW}не задан (будет закрыт)${NC}"
-    fi
-    echo -e "  ${BOLD}${PORT}${NC}  ${PORT_DESC[$PORT]:-}  — $STATUS"
-  done
-
-  if [[ ${#SKIPPED[@]} -gt 0 ]]; then
-    echo ""
-    echo -e "${YELLOW}  ⚠️  Следующие порты совпадают с портом Xray и НЕ будут закрыты:${NC}"
-    for PORT in "${SKIPPED[@]}"; do
-      echo -e "     ${BOLD}${PORT}${NC} — используется Xray"
+  # Показываем текущие ALLOW правила
+  CURRENT_ALLOWS=$(ufw status | grep "ALLOW" | grep -v "ALLOW FWD" || true)
+  if [[ -n "$CURRENT_ALLOWS" ]]; then
+    echo -e "  Сейчас разрешено:"
+    echo "$CURRENT_ALLOWS" | while read -r line; do
+      echo -e "    ${GREEN}$line${NC}"
     done
+  else
+    echo -e "  ${YELLOW}Нет явных ALLOW правил (всё входящее закрыто)${NC}"
   fi
-
   echo ""
-  echo -e "${BOLD}━━━ Дополнительные порты ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-  echo -e "  Введите доп. порты через пробел (или Enter чтобы пропустить):"
+
+  echo -e "${BOLD}━━━ Открыть дополнительный порт ━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "  По умолчанию разрешены только:"
+  echo -e "    ${GREEN}22/tcp${NC}   — SSH"
+  if [[ -n "$XRAY_LISTEN_PORT" ]]; then
+    echo -e "    ${GREEN}$XRAY_LISTEN_PORT/tcp${NC} — Xray (VLESS)"
+  fi
+  echo -e "  Всё остальное — закрыто."
+  echo ""
+  echo -e "  Введите порты для открытия через пробел (или Enter чтобы выйти):"
   echo -n "  > "
   read -r EXTRA_INPUT
-  EXTRA_PORTS=()
+
+  if [[ -z "$EXTRA_INPUT" ]]; then
+    echo -e "${YELLOW}  Без изменений.${NC}"
+    return
+  fi
+
+  TO_OPEN=()
   for P in $EXTRA_INPUT; do
     if [[ "$P" =~ ^[0-9]+$ ]] && (( P >= 1 && P <= 65535 )); then
-      if [[ "$P" == "$XRAY_LISTEN_PORT" ]]; then
-        echo -e "  ${RED}Порт $P совпадает с Xray — пропущен${NC}"
+      if [[ "$P" == "22" ]]; then
+        echo -e "  ${CYAN}Порт 22 (SSH) уже открыт — пропущен${NC}"
+      elif [[ "$P" == "$XRAY_LISTEN_PORT" ]]; then
+        echo -e "  ${CYAN}Порт $P (Xray) уже открыт — пропущен${NC}"
       else
-        EXTRA_PORTS+=("$P")
-        TO_CLOSE+=("$P")
+        TO_OPEN+=("$P")
       fi
     else
       echo -e "  ${RED}Некорректный порт: $P — пропущен${NC}"
     fi
   done
 
-  echo ""
-  echo -e "${BOLD}━━━ Итог: будет выполнено ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-  echo -e "  ufw deny для портов: ${BOLD}${TO_CLOSE[*]}${NC}"
-  if [[ ${#SKIPPED[@]} -gt 0 ]]; then
-    echo -e "  Пропущены (Xray):    ${BOLD}${SKIPPED[*]}${NC}"
+  if [[ ${#TO_OPEN[@]} -eq 0 ]]; then
+    echo -e "${YELLOW}  Нечего открывать.${NC}"
+    return
   fi
+
+  echo ""
+  echo -e "${BOLD}━━━ Итог: будет открыто ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  for P in "${TO_OPEN[@]}"; do
+    echo -e "  ${GREEN}ufw allow $P/tcp${NC}"
+  done
   echo ""
 
   echo -n "  Применить? [y/N]: "
@@ -684,29 +672,16 @@ except:
 
   echo ""
   echo -e "${YELLOW}  Применяю правила...${NC}"
-  CLOSED=()
-  ALREADY=()
-  for PORT in "${TO_CLOSE[@]}"; do
-    if ufw status | grep -qE "^${PORT}/tcp.*DENY"; then
-      ALREADY+=("$PORT")
-    else
-      ufw deny "$PORT"/tcp > /dev/null 2>&1
-      CLOSED+=("$PORT")
-    fi
+  for PORT in "${TO_OPEN[@]}"; do
+    ufw allow "$PORT"/tcp > /dev/null 2>&1
+    echo -e "  ${GREEN}✅ Открыт: $PORT/tcp${NC}"
   done
   ufw reload > /dev/null 2>&1
-
   echo ""
-  echo -e "${BOLD}━━━ Результат ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-  if [[ ${#CLOSED[@]} -gt 0 ]]; then
-    echo -e "  ${GREEN}✅ Закрыты:       ${CLOSED[*]}${NC}"
-  fi
-  if [[ ${#ALREADY[@]} -gt 0 ]]; then
-    echo -e "  ${CYAN}ℹ️  Уже закрыты:  ${ALREADY[*]}${NC}"
-  fi
-  if [[ ${#SKIPPED[@]} -gt 0 ]]; then
-    echo -e "  ${YELLOW}⚠️  Xray-порт:    ${SKIPPED[*]} — не тронут${NC}"
-  fi
+  echo -e "${BOLD}━━━ Текущие разрешённые порты ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  ufw status | grep "ALLOW" | grep -v "ALLOW FWD" | while read -r line; do
+    echo -e "  ${GREEN}$line${NC}"
+  done
   echo ""
 }
 
